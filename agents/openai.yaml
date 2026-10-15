@@ -1,0 +1,12 @@
+interface:
+  display_name: "LearnFlow"
+  short_description: "用独立输出与迁移复测验证掌握，支持按书学习、错因诊断和断点续学"
+  icon_small: "./assets/icon.svg"
+  icon_large: "./assets/icon.svg"
+policy:
+  products:
+  - "chatgpt"
+  - "codex"
+  - "api"
+  - "atlas"
+  allow_implicit_invocation: true
