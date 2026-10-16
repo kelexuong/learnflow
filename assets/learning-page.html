@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<title>__TITLE__</title>
+<style>
+:root{color-scheme:light;--ink:#18342f;--muted:#5a7169;--accent:#176b54;--paper:#f4f5ed;--line:#d6e1d5}*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.75 system-ui,"Microsoft YaHei",sans-serif}main{max-width:1040px;margin:auto;padding:40px 24px 56px}.eyebrow{font-size:12px;letter-spacing:.12em;color:var(--accent);font-weight:700}h1{font-size:clamp(26px,4vw,40px);line-height:1.3;margin:12px 0 18px}h2{font-size:21px;margin:0 0 12px}p{white-space:pre-wrap;margin:10px 0}.subtle{color:var(--muted);font-size:14px}.panel{padding:24px;background:#fff;border:1px solid var(--line);border-radius:16px;margin:18px 0}.controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:18px 0}button,select{font:inherit;line-height:1.4;border:1px solid var(--line);border-radius:8px;background:white;color:var(--ink);padding:10px 15px;cursor:pointer}button:hover{border-color:var(--accent);background:#eff7f0}button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}button:disabled{opacity:.45;cursor:default}button:focus-visible,select:focus-visible,textarea:focus-visible,[role=button]:focus-visible{outline:3px solid #dcaa45;outline-offset:3px}.progress{font-size:14px;color:var(--muted);margin-left:auto}.answer{margin-top:18px;padding:18px;background:#edf5ee;border-left:4px solid var(--accent);white-space:pre-wrap}.source{font-size:12px;color:var(--muted);overflow-wrap:anywhere}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}.compare-card{padding:20px;border:1px solid var(--line);border-radius:12px;background:white}.compare-card h2{font-size:19px}.tab[aria-pressed=true]{background:var(--accent);color:white}textarea{width:100%;min-height:145px;font:inherit;padding:14px;border:1px solid var(--line);border-radius:10px;resize:vertical}svg{display:block;width:100%;height:auto;overflow:visible}svg text{font:15px system-ui,"Microsoft YaHei",sans-serif;fill:var(--ink)}svg [role=button]{cursor:pointer}.check{border-left:4px solid #d9b45a;padding-left:18px;margin-top:28px}footer{margin-top:26px;border-top:1px solid var(--line);padding-top:16px;color:var(--muted);font-size:12px}[hidden]{display:none!important}@media(max-width:600px){main{padding:24px 16px}.panel{padding:18px}.progress{margin-left:0;width:100%}}
+</style>
+<main>
+  <div class="eyebrow">LEARNFLOW · 学习辅助</div>
+  <h1 id="title"></h1>
+  <p id="intro" class="subtle"></p>
+  <div id="content"></div>
+  <div id="check" class="check" hidden></div>
+  <footer>本页可离线使用。翻卡、看参考答案或完成浏览不会自动更新掌握等级；正式判断仍依据你的学习规则与实际作答。</footer>
+</main>
+<script type="application/json" id="lf-data">__DATA__</script>
+<script>
+'use strict';
+const data=JSON.parse(document.getElementById('lf-data').textContent);
+const root=document.getElementById('content');
+document.getElementById('title').textContent=data.title;
+document.getElementById('intro').textContent=data.intro||'围绕当前知识点观察、比较，再用自己的话解释。';
+function el(tag,text,cls){const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;}
+function button(text,action,cls){const b=el('button',text,cls);b.type='button';b.addEventListener('click',action);return b;}
+function sources(parent,row){if(row.source_refs&&row.source_refs.length)parent.append(el('p',row.source_refs.join('\n'),'source'));}
+function controls(parent,previous,next,index,total){const c=el('div',undefined,'controls');const p=button('上一项',previous);p.disabled=index===0;const n=button('下一项',next,'primary');n.disabled=index===total-1;c.append(p,n,el('span',(index+1)+' / '+total,'progress'));parent.append(c);}
+function cards(){
+  let index=0;
+  const rows=data.kind==='quiz'?data.questions:data.cards,saved=new Map();
+  function draw(){
+    root.replaceChildren();
+    const row=rows[index],panel=el('section',undefined,'panel');
+    panel.append(el('h2',data.kind==='quiz'?row.prompt:row.front));
+    let input;
+    if(data.kind==='quiz'){
+      input=el('textarea');input.setAttribute('aria-label','你的作答');
+      input.placeholder='先写下自己的理解；也可以选择直接看答案';
+      input.value=saved.get(index)||'';panel.append(input);
+    }
+    const answer=el('div',undefined,'answer');answer.hidden=true;
+    answer.append(el('p',data.kind==='quiz'?row.answer:row.back));
+    if(row.explanation)answer.append(el('p',row.explanation));
+    sources(answer,row);
+    const label='查看'+(data.kind==='quiz'?'参考答案':'背面');
+    const reveal=button(label,()=>{
+      answer.hidden=!answer.hidden;reveal.textContent=answer.hidden?label:'收起';
+    });
+    panel.append(reveal);
+    if(input){
+      reveal.disabled=!input.value.trim();
+      input.addEventListener('input',()=>{saved.set(index,input.value);reveal.disabled=!input.value.trim();});
+      panel.append(button('直接看答案',()=>{
+        answer.hidden=false;reveal.disabled=false;reveal.textContent='收起';
+      }));
+      answer.append(el('p','查看后，本题不能作为未见答案的独立作答证据。','subtle'));
+    }
+    panel.append(answer);
+    controls(panel,()=>{index--;draw();},()=>{index++;draw();},index,rows.length);
+    root.append(panel);
+  }
+  draw();
+}
+function process(){let index=0;const tabs=el('div',undefined,'controls'),panel=el('section',undefined,'panel');root.append(tabs,panel);function draw(){tabs.replaceChildren();data.steps.forEach((step,i)=>{const b=button((i+1)+' · '+step.title,()=>{index=i;draw();},'tab');b.setAttribute('aria-pressed',String(i===index));tabs.append(b);});panel.replaceChildren(el('h2',data.steps[index].title),el('p',data.steps[index].body));sources(panel,data.steps[index]);controls(panel,()=>{index--;draw();},()=>{index++;draw();},index,data.steps.length);}draw();}
+function compare(){const grid=el('div',undefined,'grid');data.items.forEach(item=>{const panel=el('section',undefined,'compare-card');panel.append(el('h2',item.title),el('p',item.body));sources(panel,item);grid.append(panel);});root.append(grid);}
+function concept(){
+  const panel=el('section',undefined,'panel'),detail=el('section',undefined,'panel');
+  const ns='http://www.w3.org/2000/svg';
+  function s(tag,attrs,text){
+    const n=document.createElementNS(ns,tag);
+    Object.entries(attrs||{}).forEach(([k,v])=>n.setAttribute(k,String(v)));
+    if(text!==undefined)n.textContent=text;return n;
+  }
+  const columns=Math.min(3,data.nodes.length),rows=Math.ceil(data.nodes.length/columns),height=rows*110+30;
+  const svg=s('svg',{viewBox:'0 0 '+(columns*300)+' '+height,role:'group','aria-label':'知识关系图，选择节点查看解释'});
+  const defs=s('defs'),marker=s('marker',{id:'arrow',viewBox:'0 0 10 10',refX:9,refY:5,markerWidth:6,markerHeight:6,orient:'auto-start-reverse'});
+  marker.append(s('path',{d:'M 0 0 L 10 5 L 0 10 z',fill:'#78a391'}));defs.append(marker);svg.append(defs);
+  const positions=new Map(data.nodes.map((n,i)=>[n.id,{x:30+(i%columns)*300,y:25+Math.floor(i/columns)*110}]));
+  (data.edges||[]).forEach(edge=>{
+    const a=positions.get(edge.from),b=positions.get(edge.to),dx=b.x-a.x,dy=b.y-a.y;
+    const t=1/Math.max(Math.abs(dx)/124,Math.abs(dy)/36);
+    const route=dx===0&&dy===0
+      ?'M '+(a.x+80)+' '+a.y+' C '+(a.x+50)+' '+(a.y-30)+' '+(a.x+190)+' '+(a.y-30)+' '+(a.x+160)+' '+a.y
+      :'M '+(a.x+120+dx*t)+' '+(a.y+32+dy*t)+' L '+(b.x+120-dx*t)+' '+(b.y+32-dy*t);
+    svg.append(s('path',{d:route,stroke:'#78a391','stroke-width':2,'marker-end':'url(#arrow)',fill:'none'}));
+  });
+  function show(node){
+    detail.replaceChildren(el('h2',node.title),el('p',node.body));sources(detail,node);
+    const related=(data.edges||[]).filter(e=>e.from===node.id||e.to===node.id);
+    related.forEach(edge=>{
+      const from=data.nodes.find(n=>n.id===edge.from),to=data.nodes.find(n=>n.id===edge.to);
+      detail.append(el('p',from.title+' → '+to.title+(edge.label?' · '+edge.label:''),'subtle'));
+    });
+  }
+  data.nodes.forEach(node=>{
+    const p=positions.get(node.id),group=s('g',{role:'button',tabindex:0,'aria-label':node.title,transform:'translate('+p.x+' '+p.y+')'});
+    group.append(s('rect',{width:240,height:64,rx:12,fill:'#eef6ef',stroke:'#a8c8b6'}),s('text',{x:120,y:38,'text-anchor':'middle'},node.title.length>15?node.title.slice(0,14)+'…':node.title));
+    group.addEventListener('click',()=>show(node));
+    group.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();show(node);}});
+    svg.append(group);
+  });
+  panel.append(svg);root.append(panel,detail);show(data.nodes[0]);
+}
+if(data.kind==='flashcards'||data.kind==='quiz')cards();else if(data.kind==='process')process();else if(data.kind==='compare')compare();else concept();
+if(data.check){const box=document.getElementById('check');box.hidden=false;box.append(el('h2','用自己的话解释'),el('p',typeof data.check==='string'?data.check:data.check.prompt||''));}
+</script>
+</html>

@@ -1,0 +1,10 @@
+{
+  "note": "仅为字段演示，不是用户的实际学习记录；使用时替换为实际观察。",
+  "session_status": "进行中",
+  "unit_status": "进行中",
+  "reading": {"material": "用户指定教材", "chapter": "当前章节", "position": "实际已读锚点"},
+  "mastery": {},
+  "evidence": [],
+  "review": [],
+  "next_step": "从已记录位置继续当前单元，不自动切换知识点"
+}

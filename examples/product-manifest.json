@@ -1,0 +1,5 @@
+{
+  "kind": "knowledge-pack",
+  "name": "learning-notes",
+  "files": [{"path": "products/ready/notes.md", "as": "notes.md"}]
+}

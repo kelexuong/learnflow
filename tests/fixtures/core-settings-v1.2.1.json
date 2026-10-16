@@ -1,0 +1,18 @@
+{
+  "baseline": "v1.2.1",
+  "core_prefix_sha256": "10a7a0921573b9219de568ba16090af396402b212eb4590996a502adec913c19",
+  "protected_files": {
+    "agents/openai.yaml": "b412eab0f61d5ba278a7182f9195c272f2493cdc678134edc5a5bad797e67167",
+    "assets/icon.svg": "49315dda7125ec5fc77ef5f2b96126d8b2121c6e72944b4702972e90f321d3ee",
+    "examples/scenarios.md": "8540704d6ce5a90eb503451e9e21268bbf769981e65db2fb1f42b61f6fb15271",
+    "examples/validation-cases.md": "e6542a2b8605160742e60c509df0eab1b8daf9f00ce9b6f1c92532245ae747bc",
+    "references/assessment.md": "a6045dccc4c5fd486b824730ac3bd75de71672840555944287f9f77892ac9e2e",
+    "references/book-learning.md": "3ff3f5a58534597422265d02c966285bd14d695ee9865a584656e3ac4b9a3d8e",
+    "references/error-diagnosis.md": "30d606ad956d14f509686137d0f5c2cbf643a2d9b4259301372eee3d95d9edd7",
+    "references/modes.md": "177f06efb476cdc17d55a500fb34f6862cb21cd02d56102cb1a5580d41697200",
+    "references/review.md": "eaa11d0f69fa0201d3b30a28f8417fd58bb817612fe4b3623c6d3115efd3e091",
+    "references/session-boundaries.md": "28ec1288c241b0c9beae93dcb7e6ffd2573de916c8c3d9057aac6d5796df5676",
+    "references/source-integrity.md": "c80111db127cdc9d60f658c1dcbb05c6cf098dbb0d550743b81381afcbd2c153",
+    "templates/learning-record.md": "3a2ff3d6f5e5748c6d8e70dabca6a604e3df46c0796245af4213c23b06f62806"
+  }
+}
