@@ -24,13 +24,46 @@ def merge_dict(base: dict, patch: dict):
             base[key] = copy.deepcopy(value)
 
 
-def validate_progress(value: dict):
+def verification_issue(state, by_id):
+    level = state.get("level")
+    if state.get("status") != "已验证" or level in (None, "L0"):
+        return None
+    qualifying = {"independent"} if level in {"L3", "L4", "L5", "L6"} else {"independent", "hinted"}
+    successful = [
+        item for key in state.get("evidence_ids", [])
+        if (item := by_id[key])["support"] in qualifying and item.get("correct") is True
+        and item["learner_answer"].strip() and not item.get("invalid_question")
+        and not item.get("answer_exposed")
+    ]
+    if not successful:
+        return "已验证等级需要符合要求的正确作答；独立作答、答错或结果未判定本身不能证明掌握。"
+    if level in {"L3", "L4", "L5", "L6"}:
+        tasks = {task.strip() for item in successful
+                 if isinstance(task := item.get("task_id"), str) and task.strip()}
+        reason = state.get("threshold_reason")
+        if len(tasks) < 2 and not (isinstance(reason, str) and reason.strip()):
+            return "应用及以上等级默认需要两项不同任务的独立正确作答；调整门槛须说明原因。"
+    if level == "L4" and not any(item.get("transfer") for item in successful):
+        return "L4 需要新情境中的独立正确作答，不能用普通题代替迁移。"
+    if level == "L5" and not any(item.get("delayed") for item in successful):
+        return "L5 需要隔时复测的独立正确作答；同轮换题或隔时答错都不算。"
+    return None
+
+
+def validate_progress(value: dict, *, retained_mastery=()):
     if value.get("session_status") not in SESSION_STATES:
         raise LearnFlowError("会话状态须沿用原设定：进行中、等待作答、已暂停、已结束。")
     if value.get("unit_status") not in UNIT_STATES:
         raise LearnFlowError("单元状态无效。")
     if not isinstance(value.get("reading"), dict) or not isinstance(value.get("mastery"), dict):
         raise LearnFlowError("reading 与 mastery 必须分开保存为对象。")
+    checkpoint = value.get("checkpoint")
+    if checkpoint is not None:
+        if (not isinstance(checkpoint, dict)
+                or type(checkpoint.get("step")) is not int or not 1 <= checkpoint["step"] <= 5
+                or any(not isinstance(checkpoint.get(field), str) or not checkpoint[field].strip()
+                       for field in ("concept", "question"))):
+            raise LearnFlowError("待答断点需要 concept、1–5 的整数 step、以及原题 question。")
     evidence = value.get("evidence", [])
     if not isinstance(evidence, list):
         raise LearnFlowError("evidence 必须是证据列表。")
@@ -52,6 +85,7 @@ def validate_progress(value: dict):
         if item.get("answer_exposed") and item["support"] == "independent":
             raise LearnFlowError("已暴露答案的这次作答不能标为独立证据。")
         by_id[item["id"]] = item
+    warnings = []
     for concept, state in value["mastery"].items():
         if not isinstance(state, dict):
             raise LearnFlowError(f"知识点 {concept} 的状态须为对象。")
@@ -61,20 +95,13 @@ def validate_progress(value: dict):
         if state.get("status", "未评估") not in EVIDENCE_STATES:
             raise LearnFlowError("证据状态无效。")
         references = state.get("evidence_ids", [])
-        if not isinstance(references, list) or any(e not in by_id for e in references):
+        if not isinstance(references, list) or any(not isinstance(e, str) or e not in by_id for e in references):
             raise LearnFlowError("掌握状态引用了不存在的证据。")
-        if state.get("status") == "已验证" and level not in (None, "L0"):
-            independent = [by_id[e] for e in references if by_id[e]["support"] == "independent"
-                           and not by_id[e].get("invalid_question")]
-            matching = independent if level in {"L3", "L4", "L5", "L6"} else [
-                by_id[e] for e in references if by_id[e]["support"] in {"independent", "hinted"}
-                and by_id[e]["learner_answer"].strip() and not by_id[e].get("invalid_question")]
-            if not matching:
-                raise LearnFlowError("已验证等级需要原规则对应的表现证据，不能用读完或看答案替代。")
-            if level in {"L3", "L4", "L5", "L6"} and len({e.get("task_id", e["id"]) for e in independent}) < 2 and not state.get("threshold_reason"):
-                raise LearnFlowError("应用及以上等级默认需不同任务交叉验证；复杂任务调整门槛时记录 threshold_reason。")
-            if level == "L5" and not any(e.get("delayed") for e in independent):
-                raise LearnFlowError("L5 必须包含实际延迟复测证据；即时换题不算延迟。")
+        issue = verification_issue(state, by_id)
+        if issue:
+            if concept not in retained_mastery:
+                raise LearnFlowError(issue)
+            warnings.append({"concept": concept, "level": level, "reason": issue})
     for entry in value.get("review", []):
         if not isinstance(entry, dict):
             raise LearnFlowError("复习队列项须为对象。")
@@ -86,6 +113,7 @@ def validate_progress(value: dict):
                     raise LearnFlowError("复习日期须是明确的 YYYY-MM-DD；相对时间可另记 note。") from exc
         if entry.get("reminder_created") and not entry.get("reminder_receipt"):
             raise LearnFlowError("没有实际工具回执，不能声称已创建提醒。")
+    return warnings
 
 
 def save_progress(workspace: Path, topic_id: str, patch: dict, *, event="snapshot", expected_revision=None) -> dict:
@@ -109,16 +137,27 @@ def save_progress(workspace: Path, topic_id: str, patch: dict, *, event="snapsho
             raise LearnFlowError("仅记录不能结束会话；明确暂停或结束时使用对应 event。")
         old_evidence = {e["id"]: e for e in state["evidence"]}
         patch = copy.deepcopy(patch)
+        mastery_patch = patch.get("mastery", {})
+        if not isinstance(mastery_patch, dict):
+            raise LearnFlowError("mastery 必须是对象。")
+        retained_mastery = state["mastery"].keys() - mastery_patch.keys()
+        if "checkpoint" in patch:
+            checkpoint = patch.pop("checkpoint")
+            if state.get("checkpoint") is not None and checkpoint != state["checkpoint"] and "next_step" not in patch:
+                state["next_step"] = None
+            state["checkpoint"] = checkpoint
         additions = patch.pop("evidence", [])
         if not isinstance(additions, list):
             raise LearnFlowError("evidence 须为列表。")
         for item in additions:
-            if not isinstance(item, dict) or "id" not in item:
+            if not isinstance(item, dict) or not isinstance(item.get("id"), str) or not item["id"]:
                 raise LearnFlowError("证据项缺少 id。")
             if item["id"] in old_evidence:
                 if old_evidence[item["id"]] != item:
                     raise LearnFlowError("已保存原始证据不能覆盖；请用新 ID 记录纠正并注明原 ID。")
             else:
+                if "correct" in item and not isinstance(item["correct"], bool):
+                    raise LearnFlowError("证据 correct 须为布尔值；尚未判定时省略。")
                 state["evidence"].append(item)
                 old_evidence[item["id"]] = item
         merge_dict(state, patch)
@@ -130,14 +169,14 @@ def save_progress(workspace: Path, topic_id: str, patch: dict, *, event="snapsho
             state["session_status"] = "已结束"
         elif event == "resume":
             state["session_status"] = "进行中"
-        validate_progress(state)
+        warnings = validate_progress(state, retained_mastery=retained_mastery)
         payload = json.dumps(state, ensure_ascii=False, allow_nan=False)
         con.execute("INSERT INTO progress_history VALUES(?,?,?)", (topic_id, revision + 1, payload))
         con.execute("INSERT INTO progress VALUES(?,?,?) ON CONFLICT(topic_id) DO UPDATE SET revision=excluded.revision,payload=excluded.payload",
                     (topic_id, revision + 1, payload))
         con.commit()
         return {"topic_id": topic_id, "revision": revision + 1, "event": event, "state": state,
-                "lesson_advanced": False, "reminder_created": False}
+                "mastery_warnings": warnings, "lesson_advanced": False, "reminder_created": False}
     except Exception:
         con.rollback()
         raise
@@ -154,7 +193,10 @@ def load_progress(workspace: Path, topic_id: str, revision=None):
             row = con.execute("SELECT revision,payload FROM progress_history WHERE topic_id=? AND revision=?", (topic_id, revision)).fetchone()
         if row is None:
             raise LearnFlowError("没有这份历史记录；不假设过去的学习进度。")
-        return {"topic_id": topic_id, "revision": row["revision"], "state": json.loads(row["payload"])}
+        state = json.loads(row["payload"])
+        warnings = validate_progress(state, retained_mastery=state["mastery"])
+        return {"topic_id": topic_id, "revision": row["revision"], "state": state,
+                "mastery_warnings": warnings}
     finally:
         con.close()
 

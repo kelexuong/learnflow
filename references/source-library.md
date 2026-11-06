@@ -63,3 +63,7 @@ python <skill-dir>/scripts/learnflow.py --workspace <workspace> review --topic <
 默认 `snapshot` 只记录，不自动结束或进入下一点。只有用户明确暂停/结束时才选择 `pause`/`end`；恢复用 `resume`。保存成功后才报告位置与版本号。工具不编写用户答案、不计算掌握等级、不创建提醒。
 
 原始证据按 ID 追加，已保存作答不可覆盖；纠正用新 ID 关联原证据。修改时可带 `--expected-revision`，防止覆盖其他操作的新进度。学习状态的校验只排除明显不一致，不能替代原能力判定协议，也不能证明输入证据真实。
+
+出题后可在快照写入 `checkpoint`：`concept` 是知识点，`step` 是 1–5 的整数，`question` 是待答题原文。保存时整个断点替换；不提供则保留原断点；设为 `null` 可清除。替换或清除旧断点时，未提供新 `next_step` 就清除旧的下一步文字，避免把用户送回已答题。没有结构化断点的旧记录仍可从 `next_step` 恢复。
+
+证据的 `support` 记录作答方式；`correct: true/false` 记录是否达到该题的正确标准，未判定则省略。应用及以上默认用不同的 `task_id` 标明不同任务。L4 需正确迁移（`transfer: true`），L5 需正确的实际隔时复测（`delayed: true`），这两类证据均需独立作答。旧记录保留原样；读取时若有 `mastery_warnings`，将对应等级视为待复核，不拿它当已掌握的依据。可追加新证据或明确调整等级状态。

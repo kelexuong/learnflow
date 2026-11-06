@@ -13,13 +13,16 @@ CLI = ROOT / "scripts/learnflow.py"
 class OriginalSettingsTests(unittest.TestCase):
     def test_retained_settings_and_ui_are_unchanged(self):
         lock = json.loads((ROOT / "tests/fixtures/core-settings-v1.2.1.json").read_text(encoding="utf-8"))
-        # v1.5.0 updates the entry routes and merges the older example files.
-        # Assessment, review, session boundaries and UI stay locked.
+        # Entry routes, examples and checkpoint handling were intentionally updated.
+        # The original level definitions and UI remain locked.
         integrated_into_five_steps = {
             "references/modes.md",
             "references/book-learning.md",
             "examples/scenarios.md",
             "examples/validation-cases.md",
+            "templates/learning-record.md",
+            "references/review.md",
+            "references/session-boundaries.md",
         }
         for name, expected in lock["protected_files"].items():
             if name in integrated_into_five_steps:

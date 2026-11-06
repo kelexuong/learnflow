@@ -6,5 +6,6 @@
   "mastery": {},
   "evidence": [],
   "review": [],
-  "next_step": "从已记录位置继续当前单元，不自动切换知识点"
+  "checkpoint": {"concept": "平均速度", "step": 3, "question": "第2题：两段路用的时间相同，怎样算整趟平均速度？"},
+  "next_step": "等待第2题作答，不附答案"
 }
