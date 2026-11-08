@@ -148,6 +148,14 @@ class ProgressTests(unittest.TestCase):
         with self.assertRaises(LearnFlowError):
             save_progress(self.workspace, "logic", {"review": [{"reminder_created": True}]})
 
+    def test_course_checkpoint_retains_phase_and_excludes_conflicting_step(self):
+        checkpoint = {"concept": "平均速度", "phase": "练", "question": "说出排序理由。"}
+        save_progress(self.workspace, "course", {"checkpoint": checkpoint})
+        saved = save_progress(self.workspace, "course", {}, event="pause")
+        self.assertEqual(saved["state"]["checkpoint"], checkpoint)
+        with self.assertRaises(LearnFlowError):
+            save_progress(self.workspace, "course", {"checkpoint": {**checkpoint, "step": 3}})
+
     def test_review_observes_explicit_agreement_without_advancing(self):
         save_progress(self.workspace, "logic", {"review": [
             {"concept": "A", "suggested_on": "2026-10-15", "agreed_on": "2026-10-18"},

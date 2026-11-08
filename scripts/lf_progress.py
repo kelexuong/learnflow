@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 
 from lf_common import LearnFlowError, database, safe_id
+from lf_exams import apply_grades, exam_resume, nonblank, register_exam, validate_exam_evidence
 
 
 SESSION_STATES = {"进行中", "等待作答", "已暂停", "已结束"}
@@ -57,13 +58,28 @@ def validate_progress(value: dict, *, retained_mastery=()):
         raise LearnFlowError("单元状态无效。")
     if not isinstance(value.get("reading"), dict) or not isinstance(value.get("mastery"), dict):
         raise LearnFlowError("reading 与 mastery 必须分开保存为对象。")
+    course = value.get("course")
+    if course is not None:
+        if (not isinstance(course, dict) or not nonblank(course.get("goal"))
+                or course.get("phase") not in ("讲", "练", "测", "评")
+                or not isinstance(course.get("remaining"), list)
+                or any(not nonblank(item) for item in course["remaining"])
+                or any(key in course and not nonblank(course[key]) for key in ("return_to", "time_plan"))):
+            raise LearnFlowError("课程断点需要目标 goal、阶段 phase 和剩余任务列表 remaining。")
+        if "exam_id" in course and (not isinstance(course["exam_id"], str)
+                                   or course["exam_id"] not in value.get("locked_exams", {})):
+            raise LearnFlowError("课程断点的 exam_id 必须指向已锁定的测验。")
     checkpoint = value.get("checkpoint")
     if checkpoint is not None:
-        if (not isinstance(checkpoint, dict)
-                or type(checkpoint.get("step")) is not int or not 1 <= checkpoint["step"] <= 5
+        if not isinstance(checkpoint, dict):
+            raise LearnFlowError("待答断点须为对象。")
+        step, phase = checkpoint.get("step"), checkpoint.get("phase")
+        numbered = type(step) is int and 1 <= step <= 5 and phase is None
+        staged = step is None and isinstance(phase, str) and phase in {"讲", "练", "测", "评"}
+        if (not (numbered or staged)
                 or any(not isinstance(checkpoint.get(field), str) or not checkpoint[field].strip()
                        for field in ("concept", "question"))):
-            raise LearnFlowError("待答断点需要 concept、1–5 的整数 step、以及原题 question。")
+            raise LearnFlowError("待答断点需要 concept、原题 question，以及 step（1–5）或 phase（讲/练/测/评）。")
     evidence = value.get("evidence", [])
     if not isinstance(evidence, list):
         raise LearnFlowError("evidence 必须是证据列表。")
@@ -137,6 +153,14 @@ def save_progress(workspace: Path, topic_id: str, patch: dict, *, event="snapsho
             raise LearnFlowError("仅记录不能结束会话；明确暂停或结束时使用对应 event。")
         old_evidence = {e["id"]: e for e in state["evidence"]}
         patch = copy.deepcopy(patch)
+        if "locked_exams" in patch:
+            raise LearnFlowError("不能直接改写测验档案；使用 exam_plan 或 exam_grades。")
+        prior_exams = dict(state.get("locked_exams", {}))
+        if "exam_plan" in patch:
+            register_exam(state, patch.pop("exam_plan"), revision + 1)
+        grading = patch.pop("exam_grades", [])
+        if "course" in patch:
+            state["course"] = patch.pop("course")
         mastery_patch = patch.get("mastery", {})
         if not isinstance(mastery_patch, dict):
             raise LearnFlowError("mastery 必须是对象。")
@@ -158,6 +182,7 @@ def save_progress(workspace: Path, topic_id: str, patch: dict, *, event="snapsho
             else:
                 if "correct" in item and not isinstance(item["correct"], bool):
                     raise LearnFlowError("证据 correct 须为布尔值；尚未判定时省略。")
+                validate_exam_evidence(item, prior_exams)
                 state["evidence"].append(item)
                 old_evidence[item["id"]] = item
         merge_dict(state, patch)
@@ -170,13 +195,15 @@ def save_progress(workspace: Path, topic_id: str, patch: dict, *, event="snapsho
         elif event == "resume":
             state["session_status"] = "进行中"
         warnings = validate_progress(state, retained_mastery=retained_mastery)
+        apply_grades(state, grading, revision + 1)
         payload = json.dumps(state, ensure_ascii=False, allow_nan=False)
         con.execute("INSERT INTO progress_history VALUES(?,?,?)", (topic_id, revision + 1, payload))
         con.execute("INSERT INTO progress VALUES(?,?,?) ON CONFLICT(topic_id) DO UPDATE SET revision=excluded.revision,payload=excluded.payload",
                     (topic_id, revision + 1, payload))
         con.commit()
         return {"topic_id": topic_id, "revision": revision + 1, "event": event, "state": state,
-                "mastery_warnings": warnings, "lesson_advanced": False, "reminder_created": False}
+                "mastery_warnings": warnings, "exam_resume": exam_resume(state),
+                "lesson_advanced": False, "reminder_created": False}
     except Exception:
         con.rollback()
         raise
@@ -196,7 +223,7 @@ def load_progress(workspace: Path, topic_id: str, revision=None):
         state = json.loads(row["payload"])
         warnings = validate_progress(state, retained_mastery=state["mastery"])
         return {"topic_id": topic_id, "revision": row["revision"], "state": state,
-                "mastery_warnings": warnings}
+                "mastery_warnings": warnings, "exam_resume": exam_resume(state)}
     finally:
         con.close()
 

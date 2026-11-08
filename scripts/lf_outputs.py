@@ -34,10 +34,25 @@ def validate_visual(data: dict):
         raise LearnFlowError("交互页数据须为 JSON 对象。")
     string(data.get("title"), "title")
     kind = data.get("kind")
+    if kind == "drag-order":
+        rows = data.get("items")
+        if not isinstance(rows, list) or not 2 <= len(rows) <= 12:
+            raise LearnFlowError("拖拽排序需要 2–12 张卡片。")
+        ids = []
+        for row in rows:
+            if not isinstance(row, dict):
+                raise LearnFlowError("拖拽卡片须为对象。")
+            ids.append(string(row.get("id"), "卡片 ID"))
+            string(row.get("label"), "卡片内容")
+        expected = data.get("order")
+        if (len(set(ids)) != len(ids) or not isinstance(expected, list) or len(expected) != len(ids)
+                or any(not isinstance(i, str) for i in expected) or set(expected) != set(ids) or expected == ids):
+            raise LearnFlowError("拖拽排序需要唯一 ID、完整正确顺序，以及打乱的初始顺序。")
+        return
     key = {"concept-map": "nodes", "process": "steps", "compare": "items",
            "flashcards": "cards", "quiz": "questions"}.get(kind)
     if key is None:
-        raise LearnFlowError("kind 须为 concept-map/process/compare/flashcards/quiz。")
+        raise LearnFlowError("kind 须为 concept-map/process/compare/flashcards/quiz/drag-order。")
     rows = data.get(key)
     if not isinstance(rows, list) or not 1 <= len(rows) <= 60:
         raise LearnFlowError(f"{key} 须包含 1–60 项；较大的内容请按学习目标分开。")
@@ -68,7 +83,8 @@ def export_visual(workspace: Path, data: dict, output: str | Path) -> dict:
     payload = json.dumps(data, ensure_ascii=False, allow_nan=False)
     payload = payload.replace("&", "\\u0026").replace("<", "\\u003c").replace(">", "\\u003e").replace("\u2028", "\\u2028").replace("\u2029", "\\u2029")
     template = (SKILL_ROOT / "assets" / "learning-page.html").read_text(encoding="utf-8")
-    content = template.replace("__TITLE__", html.escape(data["title"], quote=True)).replace("__DATA__", payload)
+    content = template.replace("__EXERCISE_KEY__", hashlib.sha256(payload.encode()).hexdigest())
+    content = content.replace("__TITLE__", html.escape(data["title"], quote=True)).replace("__DATA__", payload)
     path.write_text(content, encoding="utf-8", newline="\n")
     return {"path": str(path), "kind": data["kind"], "offline": True,
             "sha256": digest_file(path), "mastery_updated": False}

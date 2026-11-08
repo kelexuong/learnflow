@@ -14,6 +14,7 @@ import sys
 from lf_common import LearnFlowError, workspace_path
 from lf_outputs import build_product, export_docx, export_visual
 from lf_progress import due_reviews, load_progress, save_progress
+from lf_report import export_report
 from lf_sources import (ROLES, catalog, import_many, outline, read_blocks,
                         render_source_page, search, verify)
 
@@ -104,9 +105,18 @@ def parser():
     review = commands.add_parser("review", help="按用户当地日期查看到期复习；不创建提醒")
     review.add_argument("--topic", required=True)
     review.add_argument("--on", required=True)
-    visual = commands.add_parser("visual", help="生成离线关系图、流程、比较、闪卡或自测页")
+    visual = commands.add_parser("visual", help="生成离线关系图、流程、比较、闪卡、自测或拖拽排序")
     visual.add_argument("--input", required=True)
     visual.add_argument("--output", required=True)
+    report = commands.add_parser("report", help="按实际作答生成离线学情单")
+    report.add_argument("--topic", required=True)
+    report.add_argument("--output", required=True)
+    report.add_argument("--title")
+    report.add_argument("--concept", action="append", default=[])
+    report.add_argument("--since-revision", type=int)
+    report.add_argument("--next", dest="next_task")
+    report.add_argument("--exam", help="只汇总指定的已锁定测验")
+    report.add_argument("--assessment", help=argparse.SUPPRESS)
     word = commands.add_parser("export-docx", help="将已准备的 Markdown 导出为学习手册/笔记 DOCX")
     word.add_argument("--input", required=True, type=Path)
     word.add_argument("--output", required=True)
@@ -152,6 +162,12 @@ def run(args):
         return due_reviews(workspace, args.topic, args.on), 0
     if args.command == "visual":
         return export_visual(workspace, load_json(args.input), args.output), 0
+    if args.command == "report":
+        if args.assessment is not None:
+            raise LearnFlowError("报告不再接收临时评分表；请先保存测验方案和实际给分，再用 --exam。")
+        return export_report(workspace, args.topic, args.output, title=args.title, concepts=args.concept,
+                             since_revision=args.since_revision, next_task=args.next_task,
+                             exam_id=args.exam), 0
     if args.command == "export-docx":
         return export_docx(workspace, args.input, args.output), 0
     if args.command == "product":

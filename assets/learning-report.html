@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+<title>$title</title>
+<style>
+:root{color-scheme:light;--paper:#eef4fa;--ink:#142a43;--blue:#15437b;--rule:#d4e0ed;--green:#1c775b;--rust:#bd5039;--ochre:#a1681b;--purple:#715582;--gray:#657b8e}
+*{box-sizing:border-box}
+body{margin:0;color:var(--ink);background:var(--paper);font-family:"Microsoft YaHei UI","PingFang SC","Noto Sans CJK SC",system-ui,sans-serif;line-height:1.65}
+main{max-width:960px;margin:auto;padding:42px 24px}
+.sheet{background:#fff;border:1px solid var(--rule)}
+.hero{position:relative;padding:32px 36px 27px;background:var(--blue);color:white;overflow-wrap:anywhere}
+.brand{font-size:.92rem;font-weight:600;color:#dceafa}
+h1{font-size:clamp(1.8rem,5vw,3rem);margin:7px 0 10px;line-height:1.22;letter-spacing:-.035em}
+.scope{margin:0;color:#dceafa}
+.intro{display:grid;grid-template-columns:minmax(175px,.85fr) minmax(0,1.15fr);padding:26px 36px;gap:24px;border-bottom:1px solid var(--rule)}
+.ratio{display:block;color:var(--blue);font-size:clamp(1.9rem,5vw,2.8rem);line-height:1.14;font-weight:700;font-variant-numeric:tabular-nums}
+.ratio-label,.summary p{margin:5px 0 0}
+.summary{padding-left:22px;border-left:2px solid var(--rule);align-self:center}
+.next{background:var(--paper);padding:16px 20px;margin:24px 36px 0;border-left:4px solid var(--blue);overflow-wrap:anywhere}
+.next h2,.next p{margin:0}
+.next h2{font-size:1rem;color:var(--blue);margin-bottom:4px}
+.scores{margin:22px 36px 0;padding:14px 0 3px;border-block:1px solid var(--rule)}
+.scores h2{margin:0 0 5px;font-size:1.16rem;color:var(--blue)}
+.scores p{margin:0 0 5px;font-size:.85rem;color:#3d5369}
+.scores ul{list-style:none;padding:0;margin:0}
+.scores li{display:flex;flex-wrap:wrap;justify-content:space-between;gap:2px 14px;padding:6px 0;overflow-wrap:anywhere}
+.scores li span{color:#3d5369}
+.details{padding:22px 36px 25px}
+.details h2{font-size:1.3rem;margin:0 0 9px}
+.legend,.traces{padding:0;list-style:none;margin:0}
+.legend{display:flex;flex-wrap:wrap;gap:4px 15px;font-size:.85rem}
+.legend li{display:flex;align-items:center;gap:6px}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:2px}
+.traces{margin-top:13px;border-top:1px solid var(--rule)}
+.trace{display:grid;grid-template-columns:minmax(0,.75fr) minmax(0,1.25fr);gap:14px;padding:16px 0;border-bottom:1px solid var(--rule);overflow-wrap:anywhere}
+.trace h3{margin:0;font-size:1.06rem;line-height:1.45}
+.status,.counts,.evidence{margin:4px 0 0;font-size:.86rem;color:#3d5369}
+.coaching{margin:8px 0 0;padding-left:9px;border-left:2px solid var(--rule);font-size:.9rem}
+.bar{display:flex;overflow:hidden;min-height:12px;border-radius:2px;background:var(--paper);margin-top:4px}
+.bar span{flex-basis:0;min-width:0}
+.bar.empty{border:1px dashed #9cb1c3;background:white}
+.correct{background:var(--green)}.wrong{background:var(--rust)}.hinted{background:var(--ochre)}.seen{background:var(--purple)}.ungraded{background:var(--gray)}
+.empty-row{padding:14px 0}
+footer{padding:13px 36px 21px;color:#3d5369;font-size:.82rem;border-top:1px solid var(--rule)}
+@media(max-width:560px){
+  main{padding:14px 10px}.hero,.intro,.details,footer{padding-left:17px;padding-right:17px}
+  .intro{gap:15px;grid-template-columns:1fr}.summary{padding-left:12px}.next,.scores{margin-left:17px;margin-right:17px}
+  .trace{grid-template-columns:1fr;gap:6px}
+}
+@media print{
+  body{background:#fff}main{padding:0}.hero{background:#fff;color:var(--ink);border-bottom:2px solid var(--blue)}
+  .brand,.scope{color:var(--blue)}.bar,.legend i{print-color-adjust:exact;-webkit-print-color-adjust:exact}
+  .trace,.next,.intro,.scores li{break-inside:avoid}.sheet{border:0}
+}
+</style>
+</head>
+<body>
+<main><article class="sheet">
+  <header class="hero"><div class="brand">LearnFlow 学情单</div><h1>$title</h1><p class="scope">$scope</p></header>
+  <section class="intro" aria-label="作答概况">
+    <div><strong class="ratio">$ratio</strong><p class="ratio-label">$explanation</p></div>
+    <div class="summary"><p><strong>$attempts</strong> 次实际作答，含补测</p><p><strong>$concepts</strong> 项反馈，含未测或未归类作答</p></div>
+  </section>
+  <section class="next"><h2>接下来练什么</h2><p>$next_task</p></section>
+  $scores
+  <section class="details"><h2>逐项看作答</h2><ul class="legend">$legend</ul><ul class="traces">$rows</ul></section>
+  <footer>条形长度表示各类作答在该项中的占比。全过程独立正确率以当前范围内已判定的独立作答为分母；结课总分只看选定的整场测验。当前等级可含历史证据；未测不计分。</footer>
+</article></main>
+</body>
+</html>

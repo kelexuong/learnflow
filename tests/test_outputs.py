@@ -18,7 +18,7 @@ class OutputTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
-    def test_all_five_visual_types_have_real_embedded_data(self):
+    def test_all_visual_types_have_real_embedded_data(self):
         examples = json.loads((SKILL_ROOT / "examples/visual-examples.json").read_text(encoding="utf-8"))["examples"]
         for data in examples:
             result = export_visual(self.workspace, data, f"visuals/{data['kind']}.html")
@@ -109,3 +109,11 @@ class OutputTests(unittest.TestCase):
         with self.assertRaises(LearnFlowError):
             export_visual(self.workspace, data, "visuals/invalid.html")
         self.assertFalse((self.workspace / "visuals/invalid.html").exists())
+
+    def test_drag_order_rejects_inconsistent_or_already_solved_exercise(self):
+        data = {"kind": "drag-order", "title": "排序",
+                "items": [{"id": "b", "label": "后做"}, {"id": "a", "label": "先做"}]}
+        for order in (["b", "a"], ["a", "missing"], ["a", "a"]):
+            with self.subTest(order=order), self.assertRaises(LearnFlowError):
+                export_visual(self.workspace, {**data, "order": order}, "visuals/order.html")
+        self.assertFalse((self.workspace / "visuals/order.html").exists())

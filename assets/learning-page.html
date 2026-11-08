@@ -7,6 +7,10 @@
 <style>
 :root{color-scheme:light;--ink:#18342f;--muted:#5a7169;--accent:#176b54;--paper:#f4f5ed;--line:#d6e1d5}*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.75 system-ui,"Microsoft YaHei",sans-serif}main{max-width:1040px;margin:auto;padding:40px 24px 56px}.eyebrow{font-size:12px;letter-spacing:.12em;color:var(--accent);font-weight:700}h1{font-size:clamp(26px,4vw,40px);line-height:1.3;margin:12px 0 18px}h2{font-size:21px;margin:0 0 12px}p{white-space:pre-wrap;margin:10px 0}.subtle{color:var(--muted);font-size:14px}.panel{padding:24px;background:#fff;border:1px solid var(--line);border-radius:16px;margin:18px 0}.controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:18px 0}button,select{font:inherit;line-height:1.4;border:1px solid var(--line);border-radius:8px;background:white;color:var(--ink);padding:10px 15px;cursor:pointer}button:hover{border-color:var(--accent);background:#eff7f0}button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}button:disabled{opacity:.45;cursor:default}button:focus-visible,select:focus-visible,textarea:focus-visible,[role=button]:focus-visible{outline:3px solid #dcaa45;outline-offset:3px}.progress{font-size:14px;color:var(--muted);margin-left:auto}.answer{margin-top:18px;padding:18px;background:#edf5ee;border-left:4px solid var(--accent);white-space:pre-wrap}.source{font-size:12px;color:var(--muted);overflow-wrap:anywhere}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}.compare-card{padding:20px;border:1px solid var(--line);border-radius:12px;background:white}.compare-card h2{font-size:19px}.tab[aria-pressed=true]{background:var(--accent);color:white}textarea{width:100%;min-height:145px;font:inherit;padding:14px;border:1px solid var(--line);border-radius:10px;resize:vertical}svg{display:block;width:100%;height:auto;overflow:visible}svg text{font:15px system-ui,"Microsoft YaHei",sans-serif;fill:var(--ink)}svg [role=button]{cursor:pointer}.check{border-left:4px solid #d9b45a;padding-left:18px;margin-top:28px}footer{margin-top:26px;border-top:1px solid var(--line);padding-top:16px;color:var(--muted);font-size:12px}[hidden]{display:none!important}@media(max-width:600px){main{padding:24px 16px}.panel{padding:18px}.progress{margin-left:0;width:100%}}
 </style>
+<style>.order-actions{margin:12px 0 4px}.order-copy{min-height:104px}</style>
+<style>
+.order-list{list-style:none;padding:0;display:grid;gap:8px}.order-item{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:8px;min-width:0}.order-item.target{outline:2px dashed var(--accent);outline-offset:1px}.order-grip{cursor:grab;padding:6px 8px;flex:1;overflow-wrap:anywhere}.order-grip:active{cursor:grabbing}.order-item button{padding:6px 9px}.order-result{min-height:1.7em;color:var(--accent)}
+</style>
 <main>
   <div class="eyebrow">LEARNFLOW · 学习辅助</div>
   <h1 id="title"></h1>
@@ -15,7 +19,7 @@
   <div id="check" class="check" hidden></div>
   <footer>本页可离线使用。翻卡、看参考答案或完成浏览不会自动更新掌握等级；正式判断仍依据你的学习规则与实际作答。</footer>
 </main>
-<script type="application/json" id="lf-data">__DATA__</script>
+<script type="application/json" id="lf-data" data-key="__EXERCISE_KEY__">__DATA__</script>
 <script>
 'use strict';
 const data=JSON.parse(document.getElementById('lf-data').textContent);
@@ -102,7 +106,82 @@ function concept(){
   });
   panel.append(svg);root.append(panel,detail);show(data.nodes[0]);
 }
-if(data.kind==='flashcards'||data.kind==='quiz')cards();else if(data.kind==='process')process();else if(data.kind==='compare')compare();else concept();
+function dragOrder(){
+  const items=data.items.slice(),panel=el('section',undefined,'panel');
+  const list=el('ol',undefined,'order-list'),result=el('p','','order-result');
+  const copyText=el('textarea',undefined,'order-copy'),copyStatus=el('p','','subtle');
+  copyText.readOnly=true;copyText.hidden=true;copyText.setAttribute('aria-label','可手动复制的作答');
+  copyStatus.setAttribute('aria-live','polite');
+  const storageKey='learnflow:drag:'+location.pathname+':'+document.getElementById('lf-data').dataset.key;
+  let dragged=null;
+  let checked=false,lastCheck=null;
+  result.setAttribute('role','status');
+  panel.append(el('h2','把卡片排成正确顺序'),el('p','拖动卡片文字，或用「上移／下移」。想保留首次作答，可以先复制，再检查。'),list);
+  function ids(){return items.map(item=>item.id);}
+  function saveDraft(){
+    try{localStorage.setItem(storageKey,JSON.stringify({ids:ids(),checked,lastCheck}));}
+    catch{copyStatus.textContent='这个浏览器无法保存草稿。离开前可先复制本次作答。';}
+  }
+  function showCheck(){
+    const right=items.filter((item,i)=>item.id===data.order[i]).length;
+    result.textContent=right===items.length?'顺序正确。请用一句话说明关键步骤为什么要放在这个位置。':
+      right+' / '+items.length+' 个位置正确。想想哪个步骤必须先完成，再调整。';
+  }
+  try{
+    const draft=JSON.parse(localStorage.getItem(storageKey)||'null');
+    const byId=new Map(items.map(item=>[item.id,item]));
+    if(draft&&Array.isArray(draft.ids)&&draft.ids.length===items.length
+        &&new Set(draft.ids).size===items.length&&draft.ids.every(id=>byId.has(id))){
+      items.splice(0,items.length,...draft.ids.map(id=>byId.get(id)));
+      checked=draft.checked===true;
+      if(checked&&draft.lastCheck===JSON.stringify(ids())){lastCheck=draft.lastCheck;showCheck();}
+    }
+  }catch{copyStatus.textContent='这个浏览器无法恢复草稿。离开前可先复制本次作答。';}
+  function move(from,to,control){
+    if(from===to||from<0||to<0||from>=items.length||to>=items.length)return;
+    items.splice(to,0,items.splice(from,1)[0]);result.textContent='';lastCheck=null;
+    copyText.hidden=true;copyStatus.textContent='';draw();saveDraft();
+    if(control){
+      const actions=list.children[to].querySelectorAll('button');
+      (actions[control].disabled?actions[1-control]:actions[control]).focus();
+    }
+  }
+  function draw(){
+    list.replaceChildren();
+    items.forEach((item,i)=>{
+      const row=el('li',undefined,'order-item'),grip=el('span',(i+1)+'　'+item.label,'order-grip');
+      grip.draggable=true;
+      grip.addEventListener('dragstart',e=>{dragged=i;e.dataTransfer.setData('text/plain',String(i));e.dataTransfer.effectAllowed='move';});
+      grip.addEventListener('dragend',()=>{dragged=null;for(const node of list.children)node.classList.remove('target');});
+      row.addEventListener('dragover',e=>{if(dragged!==null){e.preventDefault();row.classList.add('target');}});
+      row.addEventListener('dragleave',e=>{if(!row.contains(e.relatedTarget))row.classList.remove('target');});
+      row.addEventListener('drop',e=>{e.preventDefault();row.classList.remove('target');if(dragged!==null){const from=dragged;dragged=null;move(from,i);}});
+      const up=button('上移',()=>move(i,i-1,0)),down=button('下移',()=>move(i,i+1,1));
+      up.disabled=i===0;down.disabled=i===items.length-1;
+      up.setAttribute('aria-label','上移：'+item.label);down.setAttribute('aria-label','下移：'+item.label);
+      row.append(grip,up,down);list.append(row);
+    });
+  }
+  const actions=el('div',undefined,'controls order-actions');
+  actions.append(button('复制本次作答',async()=>{
+    const payload=['练习：'+data.title,'我的排序：'+items.map(item=>item.label).join(' → '),
+      '检查反馈：'+(checked?'已查看':'未查看'),'排序理由：'].join('\n');
+    copyText.value=payload;
+    try{
+      await navigator.clipboard.writeText(payload);
+      copyStatus.textContent='已复制。回到学习对话粘贴，再补一句排序理由。';copyText.hidden=true;
+    }catch{
+      copyText.hidden=false;copyText.focus();copyText.select();
+      copyStatus.textContent='请复制下方作答，回到学习对话粘贴并补一句排序理由。';
+    }
+  }),button('检查顺序',()=>{
+    checked=true;lastCheck=JSON.stringify(ids());copyText.hidden=true;copyStatus.textContent='';
+    showCheck();saveDraft();
+  },'primary'));
+  panel.append(actions,result,copyStatus,copyText);
+  draw();root.append(panel);
+}
+if(data.kind==='flashcards'||data.kind==='quiz')cards();else if(data.kind==='process')process();else if(data.kind==='compare')compare();else if(data.kind==='drag-order')dragOrder();else concept();
 if(data.check){const box=document.getElementById('check');box.hidden=false;box.append(el('h2','用自己的话解释'),el('p',typeof data.check==='string'?data.check:data.check.prompt||''));}
 </script>
 </html>

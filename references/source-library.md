@@ -64,6 +64,19 @@ python <skill-dir>/scripts/learnflow.py --workspace <workspace> review --topic <
 
 原始证据按 ID 追加，已保存作答不可覆盖；纠正用新 ID 关联原证据。修改时可带 `--expected-revision`，防止覆盖其他操作的新进度。学习状态的校验只排除明显不一致，不能替代原能力判定协议，也不能证明输入证据真实。
 
-出题后可在快照写入 `checkpoint`：`concept` 是知识点，`step` 是 1–5 的整数，`question` 是待答题原文。保存时整个断点替换；不提供则保留原断点；设为 `null` 可清除。替换或清除旧断点时，未提供新 `next_step` 就清除旧的下一步文字，避免把用户送回已答题。没有结构化断点的旧记录仍可从 `next_step` 恢复。
+出题后可在快照写入 `checkpoint`：`concept` 是知识点，`question` 是待答题原文。按书时填 `step`（1–5 的整数），课程填 `phase`（讲、练、测或评）；位置字段二选一。补讲时在 `next_step` 保留返回入口。保存时整个断点替换；不提供则保留；设为 `null` 可清除。替换或清除旧断点时，未提供新 `next_step` 就清除旧文字，避免回到已答题。旧记录仍可从 `next_step` 恢复。
 
 证据的 `support` 记录作答方式；`correct: true/false` 记录是否达到该题的正确标准，未判定则省略。应用及以上默认用不同的 `task_id` 标明不同任务。L4 需正确迁移（`transfer: true`），L5 需正确的实际隔时复测（`delayed: true`），这两类证据均需独立作答。旧记录保留原样；读取时若有 `mastery_warnings`，将对应等级视为待复核，不拿它当已掌握的依据。可追加新证据或明确调整等级状态。
+
+### 课程断点与正式测验
+
+使用上面的 `progress save` 写入这些字段。按实际学习范围填，不保存未发生的进度。
+
+| 字段 | 何时写入 | 最小示例 |
+|---|---|---|
+| `course` | 在课程开始、换阶段或暂停时，整体保存当前计划。保留 `checkpoint` 里的待答原题；补讲写清返回点。 | `{"goal":"能算整趟平均速度","phase":"测","remaining":["答第 2 题","看学情反馈"],"exam_id":"ride-1","return_to":"回到第 2 题"}` |
+| `exam_plan` | **发题和作答之前单独保存**。同 ID 的题目、满分和评分规则不允许改；换题用新 ID。 | `{"id":"ride-1","sections":[{"title":"应用","items":[{"task_id":"Q2","question":"停顿算不算在用时内？","max_points":10,"criteria":"判断 4 分，口径和理由 6 分"}]}]}` |
+| `evidence` | 收到正式作答后按原题记录；标注 `activity:"exam"`、`exam_id`、同题 `task_id`、真实作答和支持程度。看过答案也记录，不能随后当首次独立作答。 | `[{"id":"E2","exam_id":"ride-1","task_id":"Q2","activity":"exam","learner_answer":"算，因为要求的是全程用时。","support":"independent","correct":true}]` |
+| `exam_grades` | 依据已锁定标准判题后保存给分，可与作答同次保存；更正给分附 `reason`，历史保留。 | `[{"exam_id":"ride-1","task_id":"Q2","evidence_id":"E2","points":10}]` |
+
+`course` 可选 `time_plan`（约定的时间预算）和 `return_to`。不提供 `course` 时保留旧值，显式 `null` 清除。续学先看 `checkpoint`、`course` 和 `exam_resume`（未作答与未评分题号），沿原计划推进。未作答时不要把评分依据中的答案要点贴给用户。需要给学情单时用 `report --exam ride-1`。旧记录仍可用于过程反馈，未事先锁定的旧测验不补造正式分数。
